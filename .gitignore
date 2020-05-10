@@ -37,3 +37,13 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# The R Project
+*.Rproj
+
+# The Git Ignore
+.gitignore
+
+# Data files
+*.csv
+*.xlsx
