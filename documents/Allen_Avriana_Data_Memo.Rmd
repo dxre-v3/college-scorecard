@@ -1,0 +1,199 @@
+---
+title: "DS3 Data Memo"
+author: "Avriana Allen | 4.24.2020"
+date: ""
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    highlight: "breezedark"
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, echo = FALSE)
+
+```
+
+<style> 
+@import url('https://fonts.googleapis.com/css?family=Montserrat|Martel:300|Roboto+Slab:300|Merriweather&display=swap');
+
+body{
+font-family: Roboto Slab;
+font-size: 15px;
+background: rgba(35, 38, 41, 0.1);
+}
+
+html > body > div.container-fluid.main-container > div.row-fluid > div.toc-content.col-xs-12.col-sm-8.col-md-9 > div#the-data.section.level2 > div > table.table > thead > tr > th {
+background-color: rgba(35, 38, 41, 0.2);
+}
+
+p code{
+background-color: rgba(246, 116, 0, 0.5);
+font-weight: bold;
+}
+
+section p, section ul, section li {
+color: black;
+}
+
+.tocify ul, .tocify li{
+background-color:#232629;
+color: white;
+}
+
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover{
+background-color: #269844;
+border-color: #269844;
+}
+
+p, ul, ol{
+<!-- color: #256EB9; -->
+padding-top: 5px;
+padding-bottom: 5px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+font-family: Montserrat;
+}
+h2, h3, h5{ 
+padding-bottom: 10px;
+padding-top: 10px;
+}
+
+blockquote{
+background-color: #f8f8f8;
+border-left: 5px solid #3d3d3d;
+}
+
+</style>
+
+## The Data 
+
+This quarter I have decided to work with the U.S. Department of Education's [College Scorecard data](https://collegescorecard.ed.gov/data/). There are two available data sets on their website, the first related to the institutions, the second related to the fields of study. Both are large, the first coming in with over six thousand rows, while the second has two hundred sixteen observations. Currently, the main data set of interest will be the [Institutions](https://ed-public-download.app.cloud.gov/downloads/Most-Recent-Cohorts-All-Data-Elements.csv) but I may use the [Field of Study](https://ed-public-download.app.cloud.gov/downloads/Most-Recent-Field-Data-Elements.csv) as a supplementary data set. 
+
+There are several accompanying [data dictionaries](https://collegescorecard.ed.gov/data/documentation/) which are downloadable as a single [`xlsx` file](https://collegescorecard.ed.gov/assets/CollegeScorecardDataDictionary.xlsx). 
+
+The Institutions data set has 1,982 variables. It is likely that many of these categories may be collapsed into larger categories, or ignored for the sake of simplicity. 
+
+```{r data-dump, echo=FALSE}
+library(tidyverse)
+library(janitor)
+institutions <- read_rds('../data/processed/institutions.rds')
+
+institutions %>% 
+  select(variable_name, name_of_data_element) %>% 
+  remove_empty() %>% 
+  knitr::kable(caption = "Variables and Descriptions ", format = "html") %>%
+  kableExtra::kable_styling() %>%
+  kableExtra::scroll_box(height = "300px")
+
+```
+
+
+## Data Questions
+
+After looking at the variables available, it would interesting to predict a few different outcomes. Student loan repayment, percentage of specific degrees or mean earnings of students would all be interesting to consider.
+
+However, each of those categories is split into smaller groups such as family income or number of years since enrollment. To work with any of them, I will need to create specific response variable, which depending on the question I choose to answer, may be several categories put together. 
+
+This is a survey of more or less all of the colleges in the U.S. which means that it is a population and not a sample. Many of results however, are likely samples. We may be able to make inferences about the population given our ability to randomly sample from it. 
+
+If this is possible, it would be interesting to see what traits can be used to predict student debt or earnings as well as seeing what characteristics the colleges with the best and worst earnings have in terms of admission, diversity, etc. 
+
+Random Forests or Boosted models might be good for this given the number of categorical variables available. Although other models have not yet been covered, they may also be useful, especially if there are not linear relationships between the response variables and the predictors. 
+
+
+## Data Issues
+
+This data set will be a challenge, not only because of the number of variables or decisions that will need to be made concerning which ones to use, but also because of missing values. In the `csv` form they are listed as `NULL` which does not carry over well into R. 
+
+Another issue to deal with will be how to collapse the variables. It is likely that a lot of regex work with the appropriate data dictionary will be done. 
+
+
+## Exploratory Graphs and Tables 
+
+```{r data-load}
+colleges <- read_csv('../data/unprocessed/Most-Recent-Cohorts-All-Data-Elements.csv')  %>% 
+  clean_names()
+
+```
+#### Informative Admissions Table
+
+A table of information about each institution, including its name, state and admission rate. 
+
+```{r college-table}
+colleges %>% 
+  select(instnm, stabbr, adm_rate) %>% 
+  knitr::kable(caption = "Institution Information ", format = "html") %>%
+  kableExtra::kable_styling() %>%
+  kableExtra::scroll_box(height = "300px")
+```
+
+#### Two graphs on Engineering Degrees
+
+Key Terms: 
+
+* **Admission rate**
+* **Engineering**: Percentage of degrees awarded in Engineering. 
+
+```{r no-engineers}
+colleges %>% 
+  filter(adm_rate != "NULL") %>% 
+  mutate(no_engineering = pcip14 == "0") %>% 
+  filter(no_engineering == T) %>% 
+  ggplot(aes(as.numeric(adm_rate))) +
+  geom_density() + 
+  labs(
+    x = "Admission Rate",
+    y = "Density",
+    caption = "Density of Institutions without engineering graduates",
+    title = 'Lack of Engineering'
+  ) +
+  theme_minimal()
+```
+
+
+
+```{r engineers}
+colleges %>% 
+  filter(adm_rate != "NULL") %>% 
+  mutate(no_engineering = pcip14 == "0") %>% 
+  filter(no_engineering == F) %>% 
+  ggplot(aes(as.numeric(adm_rate), as.numeric(pcip14))) +
+  geom_point(alpha = 0.5) + 
+  labs(
+    x = "Admission Rate",
+    y = "Percentage of Engineering Degrees",
+    caption = "Percentage of Engineering Degrees by Admission Rate",
+    title = 'Engineering by Admission Rate'
+  ) +
+  theme_minimal()
+```
+
+
+#### Student Earnings 
+A quick  graph on the earnings of students after they have been out of college for 10 Years. 
+
+Key Terms
+
+* **Admission rate**  
+* **Median**: Median earnings of students working and not enrolled 10 years after entry 
+* **Mean**: Mean earnings of students working and not enrolled 10 years after entry 
+
+
+```{r earnings}
+colleges %>% 
+  filter(adm_rate != "NULL") %>% 
+  mutate(med_mean_diff = as.numeric(mn_earn_wne_p10) -  as.numeric(md_earn_wne_p10)) %>% 
+  ggplot(aes(as.numeric(adm_rate), med_mean_diff)) +
+  geom_point(alpha = 0.5) +
+  labs(
+    x = "Admission Rate",
+    y = "Dollar Amount",
+    title = "Mean and Median Earnings by Admission Rate",
+    caption = "Difference in the average mean and median earnings of student after 10 years"
+  ) + 
+  theme_minimal()
+```
+

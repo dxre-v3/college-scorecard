@@ -1,0 +1,1 @@
+This folder holds various results, including my Data Memo, Exploration and Final Presentation. 
