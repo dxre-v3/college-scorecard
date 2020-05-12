@@ -1,0 +1,394 @@
+---
+title: "College Exploration"
+author: "Avriana Allen | 5.11.2020"
+date: ""
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 5
+    highlight: "breezedark"
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, echo = FALSE)
+
+source("sample_md.R")
+```
+
+<style> 
+@import url('https://fonts.googleapis.com/css?family=Montserrat|Martel:300|Roboto+Slab:300|Merriweather&display=swap');
+
+body{
+font-family: Roboto Slab;
+font-size: 15px;
+background: rgba(35, 38, 41, 0.1);
+}
+
+html > body > div.container-fluid.main-container > div.row-fluid > div.toc-content.col-xs-12.col-sm-8.col-md-9 > div#the-data.section.level2 > div > table.table > thead > tr > th {
+background-color: rgba(35, 38, 41, 0.2);
+}
+
+p code{
+background-color: rgba(246, 116, 0, 0.5);
+font-weight: bold;
+}
+
+section p, section ul, section li {
+color: black;
+}
+
+.tocify ul, .tocify li{
+background-color:#232629;
+color: white;
+}
+
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover{
+background-color: #269844;
+border-color: #269844;
+}
+
+p, ul, ol{
+<!-- color: #256EB9; -->
+padding-top: 5px;
+padding-bottom: 5px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+font-family: Montserrat;
+}
+h2, h3, h5{ 
+padding-bottom: 10px;
+padding-top: 10px;
+}
+
+blockquote{
+background-color: #f8f8f8;
+border-left: 5px solid #3d3d3d;
+}
+
+</style>
+
+## Introduction 
+
+I remember being in high school, looking the College Scorecard, wondering where I would end up. I thought about my choices logically; humanly. Which school would give me a scholarship? Which school would prepare me to enter the workforce? Which school could I get into? 
+
+Approximately four years later, I'm sitting in my room staring the data, this time in its raw format. With the end of college years quickly approaching, I have a different question, a question I want the  1,580 observations in my filtered data set to solve. Can I predict loan repayment based on the institution you attended? 
+
+## The Question
+
+Finding a response variable from the data was actually slightly more complicated than I initially thought it would be. There are 132 variables in the data set related to that question. There's a two year default rate, a three year default rate, not to mention the one, three, five and seven year repayment rates. Each of the later is further divided by income, original financial aid, and dependency. 
+
+I decided to go with the five year repayment rate for completers. In short, I choose to calculate the percentage of students who are paying off their loan 5 years after they entered the loan repayment period (it came due). 
+
+This response variable is not perfect. Its initial missingness was about 16%. It is recorded in percents, and the number refers to students who are paying off their federal loans. It doesn't account for the number of students who have already paid off their loans. It's also a little hard to tell if a high percentage of students who are still paying off loans after 5 years is a good or a bad thing.
+
+However, I thought it would make a decent response variable, so I stuck with it.
+
+## The Data
+
+My goal of being accurately able to predict my chosen response required a bit of data cleaning. My data set originally had around 6,000 entries and 2,000 variables. 
+
+I reduced the number of variables by hand, looking at each category (such as aid or admission), and choosing the variables I wanted. I had a couple things in mind as I chose these variables. First, I considered my own college search experience and looked for major categories that high school students would consider when looking for a college. I also did my best to avoid the minutia.
+
+The data provided by College Scorecard can be considered at very specific levels such as the *cumulative loan debt at the 90th percentile*. However I wanted the results to be as readable as possible so I focused on gathering variables such as the admission rate and the average SATs instead. 
+
+Included in the 6,000 variables were 2-year degree programs and private for-profit organizations. I wasn't interested in predicting loan repayment for either of those cases, so I filtered them out, leaving me with the public and private non-profit institutions instead. 
+
+## A Few Linear Relationships
+
+While most of the comparisons between the repayment rate and other variables did not appear to be linearly related, there were a few functions where fitting linear or polynomial models seemed feasible. 
+
+
+#### Average SATs
+
+The average SAT equivalent score, (the average test score for colleges with ACTs converted to SATs), looks to be somewhat linearly related, though its actual linear correlation, is only 59%.
+
+```{r avg_sat}
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, sat_avg)) +
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent)+
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "SAT Average Score",
+    caption = "Unit is an institution"
+  )
+```
+
+#### Tuition
+
+Tuition is a variable we instinctively assume to be correlated with success. Here, success looks like paying off a loan, which, in this case, is only linearly correlated at a rate of 41.5% for private universities, and 36.7% for public. 
+
+```{r cost, out.width='50%'}
+colleges_train %>% 
+  ggplot(aes( compl_rpy_5yr_rt, npt4_priv) )+
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent)+
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "Private Tuition",
+    caption = "Unit is an institution",
+    title = "Private"
+  )
+
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, npt4_pub) )+
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent)+
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "Public Tuition",
+    caption = "Unit is an institution",
+    title = "Public"
+  )
+```
+
+#### Faculty 
+
+Another interesting relationship is the average salary of the faculty in comparison to the loan rate. The question we might ask here is, does paying the faculty more improve repayment for their students? In theory, we might say yes, because the faculty is more motivated and interested in their students, resulting in more skills. But we can see that although there is a slight trend here, it is not strong enough to read with confidence. 
+
+
+```{r fac}
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, avgfacsal) )+
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent)+
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "Average Salary for Faculty",
+    caption = "Unit is an institution"
+  )
+```
+
+#### Pell Grants
+
+The most linear relationship I came across in my graphing was the percentage of Pell Grants verses the repayment. This negative trend could be for many reasons, such as the possibility of Pell Grants reducing the amount of Federal loans taken. Whatever the reason, it has a negative 73% correlation.
+
+```{r pell}
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, pctpell) )+
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "% of students with Pell Grants",
+    caption = "Unit is an institution"
+  )
+```
+
+## Group Plots 
+
+When choosing my predictors, there were several moments where I selected several variables that fit together particularly well for comparison. 
+
+#### Ethnicity
+
+One of the sets of variables I chose was Enrollment by Ethnicity. It is rather similar across the board with a few exceptions, such as White, Black and Hispanic. There a appears to be some other factors at work in these cases.
+
+```{r eth}
+ugds <- str_match(colleges_train %>% names, "^ugds.*")
+ugds <- ugds[!is.na(ugds)]
+ugds_eda <- colleges_train %>% 
+  select(c(ugds,compl_rpy_5yr_rt) )
+
+eth_labels <-terms %>% 
+  select(name = name_of_data_element, var = variable_name ) %>% 
+  mutate(
+    name = str_remove(name, "(^Total.*who are)|(^Total.*whose race is)"),
+    var = str_to_lower(var),
+    name = str_to_title(name),
+    name = str_trim(name)
+  ) %>% 
+  filter(str_detect(var, "ugds"))
+
+# By Ethnicity
+ugds_eda %>% 
+  pivot_longer(c(-compl_rpy_5yr_rt, -ugds_men, -ugds_women), values_to = "percent_eth", names_to = "ethnicity") %>% 
+  left_join(eth_labels, by = c("ethnicity" = "var")) %>% 
+  ggplot(aes(compl_rpy_5yr_rt, percent_eth)) +
+  geom_point(aes(color = name))+
+  facet_wrap(~name)  +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "% of students enrolled by ethnicity",
+    caption = "Unit is an institution",
+     color = ""
+  ) +
+  ggthemes::scale_color_pander()
+```
+
+#### Gender
+
+I also considered the information by gender, which mostly just shows that while there are more women than men enrolled, they pay off their debts fairly similarly at the 5 year mark.
+
+```{r gender}
+# By male and female
+ugds_eda %>% 
+  pivot_longer(c(ugds_men, ugds_women), values_to = "percent_sex", names_to = "gender") %>% 
+  left_join(eth_labels, by = c("gender" = "var")) %>% 
+  ggplot(aes(compl_rpy_5yr_rt, percent_sex)) +
+  geom_point(aes(color = name), alpha = 0.75)+
+  facet_wrap(~name)+
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "% of students enrolled by gender",
+    caption = "Unit is an institution",
+    color = ""
+  ) +
+  ggthemes::scale_color_pander()
+
+```
+
+#### Logical Categories
+
+There were several logical categories, which though not all related, I decided to view at the same time. The most noticeable difference in these categories are the the ethnic institutions.
+
+```{r flags}
+flag_type <- function(col){
+  n_distinct(col) == 2
+}
+
+flags <-  c(colleges_train %>% 
+  select_if(flag_type) %>% names)
+
+flag_names <- terms %>% 
+  select(name = name_of_data_element, var = variable_name ) %>% 
+  mutate(
+    name = str_remove(name, "(^Flag for)"),
+    name = str_replace(name, "(^Control)", "Type"),
+    var = str_to_lower(var),
+    name = str_to_title(name),
+    name = str_trim(name)
+  ) %>% 
+  filter(var %in% flags) %>% 
+  distinct(name, .keep_all = TRUE)
+
+colleges_train %>% 
+  select(flags, compl_rpy_5yr_rt) %>% 
+  pivot_longer(c(-compl_rpy_5yr_rt, -control), values_to = "class", names_to = "flags") %>%
+  left_join(flag_names, by = c("flags" = "var")) %>% 
+  mutate(class = as.logical(class)) %>% 
+  ggplot(aes(class, compl_rpy_5yr_rt)) +
+  geom_boxplot(aes(color = name))+
+  facet_wrap(~name) +
+  ggthemes::scale_color_pander(labels = function(x) str_wrap(x, width = 15))+
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    y = "% of students paying off their loan 5 yrs after entering repayment",
+    x = "",
+    caption = "Unit is an institution",
+    color = ""
+  )
+```
+
+#### Degrees
+
+Business, Visual and Performing Arts and Engineering are the interesting tables here, failing to spread as evenly as the others across our response variable.
+
+```{r degrees}
+deg_names <- terms %>%
+  select(name = name_of_data_element, var = variable_name ) %>% 
+  mutate(
+    name = str_remove(name, "^Percentage.*in "),
+    name = str_extract(name, "^.*?[,.]"),
+    name = str_remove(name, "[,.]"),
+    name = str_remove(name, "(And Literature/Letters)|(And Related Programs)"),
+    var = str_to_lower(var),
+    name = str_to_title(name),
+    name = str_trim(name)
+  ) %>% 
+  filter(str_detect(var, "^pcip.*")) 
+
+degree <- str_match(colleges_train %>% names, "^pcip.*")
+degree <- degree[!is.na(degree)]
+
+colleges_train %>% 
+  select(c(degree, compl_rpy_5yr_rt)) %>% 
+  pivot_longer(c(-compl_rpy_5yr_rt), values_to = "percent", names_to = "degree") %>% 
+  left_join(deg_names, by = c("degree" = "var")) %>% 
+  ggplot(aes(compl_rpy_5yr_rt, percent)) +
+  geom_point(aes(color = name), alpha = 0.75)+
+  facet_wrap(~name) +
+  scale_color_discrete(labels = function(x) str_wrap(x, width = 15))+
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = scales::percent) +
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "% of degrees given in",
+    caption = "Unit is an institution",
+    color = ""
+  )
+```
+
+
+## Other Major Plots
+
+A few other plots of interest arose as well. 
+
+#### Loan Rate
+
+I expected there to be an obvious correlation between the number of students with federal loans and paying them off, but there wasn't. Even when I colored the points by institution type, they remained evenly distributed though skewed by the response variable. 
+
+```{r loan}
+# Loan rate
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, pctfloan) )+
+  geom_point(aes(color = as.factor(control)), alpha = 0.5) +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = scales::percent) +
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "% of undergrad students with a federal loan",
+    caption = "Unit is an institution",
+    color = ""
+  ) +
+  ggthemes::scale_color_tableau(labels = c("Public", "Private Non-Profit"))
+
+```
+
+#### Admission Rate
+
+Admission rate also lacked clarity when I expected it. It does however have some dense clusters of points, so it may still be a useful variable.
+
+```{r adm_rate}
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, adm_rate) )+
+  geom_point(color = "#269844", alpha = 0.6)+
+   theme_minimal() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = scales::percent) +
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "Admission Rate",
+    caption = "Unit is an institution",
+    color = ""
+  ) 
+```
+
+
+
+## Final Thoughts
+
+It will be fascinating to see how the models work with this data set. Nothing was particularly linear, and the data itself was skewed. I wonder which variables will be more useful in modeling it, the ones that follow this trend or are more evenly spread. 
+
+I also wonder if I had chosen to work with the three year or one year period some of these graphs would look significantly different. After attempting to model the five year rate, I might go back and see if I can predict the change between the three and five year or one and five year rates.
+
+
+>Note: Due to the number of variables and reduced data, I thought it made sense for me to explore using my training data. If I had more data, I would have followed the best practices of data science and split off a piece for exploration. Given my data's limited nature, I thought it best to conserve the data for selection and performance.  
+
+>Note: To see the code for this page or code I used for my exploration, visit the GitHub Repo's [Scripts](https://github.com/dxre-v3/college-scorecard/tree/master/scripts) or [Documents](https://github.com/dxre-v3/college-scorecard/tree/master/documents).

@@ -9,7 +9,6 @@ initial_read <- read_csv('data/unprocessed/Most-Recent-Cohorts-All-Data-Elements
 privsupress <- problems(initial_read)
 terms <- read_rds('data/processed/institutions.rds')
 
-
 privsupress <- privsupress %>% 
   left_join(terms, by = c("col" = "variable_name")) %>% 
     mutate(recorded = "NA") %>% 
@@ -135,7 +134,7 @@ small_colleges <- small_colleges %>%
   janitor::clean_names()
 
 small_colleges <- small_colleges %>% 
-  filter(preddeg == 3 & control %in% c(2, 3))
+  filter(preddeg == 3 & control %in% c(1, 2))
 
 # -------------------------------------------------------------------------
 # ========================== SAVE CLEANED DATA ============================

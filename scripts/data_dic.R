@@ -78,7 +78,7 @@ institutions <- institutions %>% fill (
 )
 
 # ======== Only rerun if file needs to be re written ======= #
-# write_rds(institution, 'data/processed/institutions.rds')
+# write_rds(institutions, 'data/processed/institutions.rds')
 # ========================================================== #
 
 # Cohort Maps ------------------------------------------------
