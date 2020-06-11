@@ -1,0 +1,207 @@
+---
+title: "College Results"
+author: "Avriana Allen | 6.6.2020"
+date: ""
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 5
+    highlight: "breezedark"
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, echo = FALSE)
+
+source("sample_md.R")
+```
+
+<style> 
+@import url('https://fonts.googleapis.com/css?family=Montserrat|Martel:300|Roboto+Slab:300|Merriweather&display=swap');
+
+body{
+font-family: Roboto Slab;
+font-size: 15px;
+background: rgba(35, 38, 41, 0.1);
+}
+
+html > body > div.container-fluid.main-container > div.row-fluid > div.toc-content.col-xs-12.col-sm-8.col-md-9 > div#the-data.section.level2 > div > table.table > thead > tr > th {
+background-color: rgba(35, 38, 41, 0.2);
+}
+
+p code{
+background-color: rgba(246, 116, 0, 0.5);
+font-weight: bold;
+}
+
+section p, section ul, section li {
+color: black;
+}
+
+.tocify ul, .tocify li{
+background-color:#232629;
+color: white;
+}
+
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover{
+background-color: #269844;
+border-color: #269844;
+}
+
+p, ul, ol{
+<!-- color: #256EB9; -->
+padding-top: 5px;
+padding-bottom: 5px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+font-family: Montserrat;
+}
+h2, h3, h5{ 
+padding-bottom: 10px;
+padding-top: 10px;
+}
+
+blockquote{
+background-color: #f8f8f8;
+border-left: 5px solid #3d3d3d;
+}
+
+</style>
+
+
+# Introduction
+
+### The Problem
+One of the biggest challenges when it comes to picking a college is the question of loans. Is the education worth it? Will it equip you to pay that loan off? Often we look to data to answer that question, trying to see if a college has a good track record that we can use to predict our probability of repayment.
+
+The question I seek to answer is, can we do this more formally? And, if so, what will we learn from the predictor variables?
+
+### The Data 
+To answer such a question requires, first and foremost, data. The College Scorecard, a semi-recent site provided by the government to help students find colleges, is built off of the most recent institutional information. Containing private and public four year and two year schools, the open data set is nothing if not comprehensive.
+
+To find answers for my question, I looked at the variables related to loans. One of the available categories was the loan repayment rate. Categorized over time, it provided insight on which schools have students repaying their loans. There was also a loan default rate, but I thought that loan repayment looked more interesting and flexible so I choose it. 
+
+However, every data set has its issues. Loan repayment, while a seemingly great variable, and not difficult to work with, was hard to define. I used the five year rate, which but I was never entirely sure if a higher or lower percentage was ideal for a school. 
+
+The other caveat I discovered was that this repayment information was only available for federal loans. Private loans and parent loans were either recorded elsewhere or not at all. Despite these issues, I was still able to predict the variable. 
+
+# The Models
+
+### Issues 
+To my disappointment, my reading in of the data made it rather difficult to work with. A number of colleges refused to present information, leaving them as `NA` values. `NA` values do not play nicely with models, and made running even linear model difficult. (For instance, I ran a linear model that had an error rate of less than 1% but a prediction rate of less than 30%).
+
+Since most of the data was not linearly related, I ran a lot of the non-linear models, but not all proved useful. Clustering, I would say is better used to seek predictors, and SVM are not of much use for regression problems.
+
+### Successes 
+As a result of this, the best model were the forests. Using `XGBoost`, I ran both random forests and boosted forests over a folded training set. Both models types were successful, partially, I think, because `XGBoost` fills in missing values. 
+ 
+With test error rates at 4% and below for both model types, I saved the best versions and ran them on my selection data. 
+
+I was worried that my boosted models might be over-fitted given that some had a `MSE` of under 1% but they held up:
+
+```{r words}
+source("sample_md.R")
+library(xgboost)
+models <- read_rds('../data/processed/college_forests.rds')
+xgb_matrix <- function(dat, outcome){
+    pred <- dat[[outcome]]
+    mat <- dat %>% dplyr::select(-outcome) %>% # encode on full boston df
+      onehot::onehot() %>% # use onehot to encode variables
+      predict(dat) # get OHE matrix
+    return(xgb.DMatrix(data = mat, 
+                       label = pred))
+}
+xg_error <- function(model, test_mat, metric = "mse"){
+  
+  # Get predictions and actual values
+  preds = predict(model, test_mat)
+  vals = getinfo(test_mat, "label")
+  
+  if(metric == "mse"){
+    
+    # Compute MSE if that's what we need
+    err <- mean((preds - vals)^2)
+    
+  } else if(metric == "misclass") {
+    
+    # Otherwise, get the misclass rate
+    err <- mean(preds != vals)
+    
+  }
+  
+  return(err)
+}
+
+
+models %>% 
+  mutate(dat = xgb_matrix(colleges_select %>%
+                            select(- unitid, - instnm, - city, - latitude, - longitude, -stabbr),
+                          "compl_rpy_5yr_rt") %>% list(),
+         xg_test_mse = map2_dbl(xg_model, dat, xg_error, metric = "mse")
+         
+  ) %>%  
+  select(learning_rate = nums, test_mse = xg_test_mse) %>% 
+  knitr::kable()
+```
+
+Because of this, I decided to select the third boosted model as my final model. Its performed with an error rate of **0.303%**. 
+
+# The Results
+
+Our first question is answered. It is possible to predict federal loan repayment repayment with some accuracy. However, our second question remains. What does that mean? 
+
+I think there are a few things we can draw from the results. First, that  decision trees were, at the end of the day, the best model is reassuring. Humans often think in decision trees and that is how the College Scorecard is set up. We add filters that will sort the information as we seek some sort of match for the ideas in our head. 
+
+Although decision trees don't provide clear answers like a linear model of how closely related the information is, we can never the less get a sense of which variables were the most important in making the forests. 
+
+```{r graphsetUp}
+
+topvars <-  c("faminc", "dep_inc_avg", "pctpell", "md_faminc", "pct25_earn_wne_p6",
+              "grad_debt_mdn", "ugds_black", "mn_earn_wne_indep0_p6", 
+              "dep_inc_pct_lo", "pct10_earn_wne_p6")
+
+makeGraph = function(df, y){
+  label <- terms %>% filter(
+    variable_name == str_to_upper(y)
+  ) %>% pluck(1)
+  
+  df %>% 
+    select("compl_rpy_5yr_rt", pred = y) %>% 
+    ggplot(aes(pred, compl_rpy_5yr_rt)) +
+    geom_point(color = '#269844', alpha = 0.5) +
+    labs(
+      x = label,
+      y = "Five-year repayment rate for completers"
+    ) +
+    theme_minimal()
+    
+}
+graphs <- tibble(info = colleges %>% list()) %>% 
+  crossing(preds = topvars) %>% 
+  mutate(
+    graph = map2(info, preds, makeGraph)
+  )
+
+```
+
+
+### Income 
+Based on the uses of the variables, the average family income, median family income and income of the student for a given institution is are three of of the top predictors. They all follow the same trend.
+
+```{r faminc}
+graphs %>% 
+  pluck(3,3)
+graphs %>% 
+  pluck(3,5)
+graphs %>% 
+  pluck(3,1)
+```
+
+# Conclusions
+
+The reliance of the forest upon income is both enlightening and disappointing. Students often can't control the amount of money they have, and attending a school with a high repayment rate may misleading since it is not base as much on other factors such as the major or diversity of the school.
+
+
+
+
