@@ -1,0 +1,483 @@
+---
+title: "College Results"
+author: "Avriana Allen | 6.12.2020"
+date: ""
+output: 
+  html_document:
+    # toc: true
+    # toc_float: true
+    toc_depth: 5
+    highlight: "breezedark"
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, echo = FALSE)
+
+source("sample_md.R")
+```
+
+<style> 
+@import url('https://fonts.googleapis.com/css?family=Montserrat|Martel:300|Roboto+Slab:300|Merriweather&display=swap');
+
+body{
+font-family: Roboto Slab;
+font-size: 15px;
+background: rgba(35, 38, 41, 0.1);
+}
+
+.tab-content{
+
+}
+
+html > body > div.container-fluid.main-container > div.row-fluid > div.toc-content.col-xs-12.col-sm-8.col-md-9 > div#the-data.section.level2 > div > table.table > thead > tr > th {
+background-color: rgba(35, 38, 41, 0.2);
+}
+
+p code{
+background-color: rgba(246, 116, 0, 0.5);
+font-weight: bold;
+}
+
+.nav-tabs > li > a{
+ background: #232629;
+ color: #ffffff;
+ border-radius: 4px 4px 0 0;
+}
+
+.nav-tabs > li > a:hover{
+  background: rgba(35,41,41, 0.90);
+}
+
+.nav-tabs > li.active > a, .nav-tabs > li.active > a:focus, .nav-tabs > li.active > a:hover, .nav-tabs > li.active > a{
+  background: #22883d;
+   color: #ffffff;
+}
+
+#an-exploration-of-institutional-data > h1{
+  font-size: 24px;
+  padding-bottom: 10px;
+}
+
+section p, section ul, section li {
+color: black;
+}
+
+.tocify ul, .tocify li{
+background-color:#232629;
+color: white;
+}
+
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover{
+background-color: #269844;
+border-color: #269844;
+}
+
+p, ul, ol{
+<!-- color: #256EB9; -->
+padding-top: 5px;
+padding-bottom: 5px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+font-family: Montserrat;
+}
+h2, h3, h5{ 
+padding-bottom: 10px;
+padding-top: 10px;
+}
+
+blockquote{
+background-color: #f8f8f8;
+border-left: 5px solid #3d3d3d;
+}
+
+</style>
+
+
+
+# An Exploration of Institutional Data  {.tabset}
+
+## Final Report
+
+### Introduction 
+
+
+#### The Problem
+One of the biggest challenges when it comes to picking a college is the question of loans. Are they worth the education the college is offering? Will you be able to pay it off later? We often intuitively look to data to answer that question. We consider graduates, asking how many loans they had and if they able to pay them off, then generalize the results to ourselves.
+
+Is it possible to predict this more formally? And if so, what can we learn from the predictor variables? 
+
+#### The Data 
+To answer such a question requires, first and foremost, data. The [College Scorecard](https://collegescorecard.ed.gov/), a semi-recent site provided by the government to help students find institutes of higher education, is built off of the most recent institutional information. Containing private and public four year and two-year schools, the open data set is nothing if not comprehensive.
+
+To find answers for my question, I looked at the variables related to loans. One of the available categories was the loan repayment rate. Categorized over time, it seemed to provide insight on rate at which students from any given school was repaying their loans. There was also a loan default rate, but I thought that loan repayment looked more interesting and flexible in its interpretation, so I selected it. 
+
+While it proved interesting to work with, it was not perhaps the best choice. Loan repayment, especially as the government defines it, was hard to decipher. It is formally defined as "the fraction of borrowers at an institution who are not in default on their federal loans and who are making progress in paying them down." However, since I chose the 5 year rate, it was hard to tell if a higher or lower percentage was ideal for a school. 
+
+The other caveat I discovered after choosing the variable was that this repayment information was only available for federal loans. Private loans and parent loans were either recorded elsewhere or not at all. 
+
+Because of these circumstances, my results must be applied with caution to any repayment rates surrounding non-federal loans. Further, while I am able, with some accuracy able to predict the repayment rate, I will not able to say if a given rate makes one school better than another. 
+
+### The Models 
+
+#### Issues 
+To my disappointment, the final cleaning of my data still had a number of columns with a lot of missing data. Although I recoded factors to save `NA`s as -1, since most NA's are simply schools refusing to provide information, I was still unable to run a few models the way I would have hoped. 
+
+#### Approach
+Although the data did not seem to have any strong linear relationships, I nevertheless decided to try running a linear model as well as a lasso and ridge against random forests and boosted models. I also decide to see if changing the problem from a regression problem to a classification model would improve results, so I also tried out a a few SVMs. 
+
+I used MSE along with accuracy (calculated from MSE divide by variance) across the various models. 
+
+**Linear Models** performed very poorly. I used three different sets of variables, with the kitchen sink model: the top 10 variables from the forest models, four variable I thought would do well, and the most strongly correlated variables. Each model resulted in an MSE higher than the variance, suggesting that the models were entirely unable to explain the data. 
+
+```{r lm}
+
+```
+
+
+**Support Vector Machines** did better. I ran the models with a linear, polynomial and radial kernel. I was only using variables with a correlation to the response variable. The best set of models was the SVM with the linear kernel, but it's accuracy as 34.5% at best. 
+
+The **Ridge** and **Lasso** models improved on these results, their best score coming in a 28.3% during training. I once again only used the correlated variables, given issues I was having with missing data on the other variables. Still, as it performed better than the other models before it, I decided to carry it over to the selection stage. 
+
+I also used random forests, and boosted models. Both of these models had lower MSEs, with accuracy rates around 18% and 20%. I used only numeric variables to train the models, and given their strong performance carried them over to the selection stage. 
+
+#### Selection and Performance
+
+Running the models on the selection data produced fairly clear results. Random forests and boosted models were  at the top with every other mode register at a 22.9% error rate or higher. 
+
+```{r selection}
+library(tidyverse)
+
+tribble(
+  ~model,  ~mse, ~var, ~percent,
+  'ridge_min', 0.00413, 0.0181, 0.229,
+  'ridge_lse', 0.00420, 0.0181, 0.232,
+  'lasso_min', 0.00424, 0.0181, 0.235,
+  'lasso_lse', 0.00448, 0.0181, 0.248,
+  'boosted_1', 0.0420, 0.0181, 2.33, 
+  'boosted_2', 0.0100, 0.0181, 0.555,
+  'boosted_3', 0.00305, 0.0181, 0.169,
+  'random_forest', 0.00297, 0.0181, 0.165
+) %>% arrange(mse) %>% 
+  knitr::kable()
+```
+
+Since the random forest model and the boosted model had very close results, I decide to carry them both over to the performance, where random forests outperformed the boosted model.
+
+```{r  resuls}
+tribble(
+  ~model, ~mse, ~var, ~error_rate,
+  'boosted', 0.00303, 0.0157, 0.192,
+  'random_forest', 0.00252, 0.0157, 0.160) %>% 
+  arrange(mse) %>% 
+  knitr::kable()
+```
+
+```{r g}
+read_rds('graphic.rds') %>% pluck(1,1)
+```
+
+### Conclusions 
+
+#### The Predictors
+
+Our first question is answered. It is possible to predict federal loan repayment with some accuracy. However, our second question remains. What does that mean? 
+
+I think there are a few things we can draw from the results. First, the fact that decision trees were, at the end of the day, the best model is reassuring. Humans often think in decision trees. In fact, that is how College Scorecard is set up. We add filters that will sort the information as we seek some sort of match for the ideas in our head. 
+
+Although decision trees don't provide simple answers like a linear model, we can nevertheless get a sense of which variables were the most important in making the forests. 
+
+```{r graphsetUp}
+
+topvars <-  c("faminc", "dep_inc_avg", "pctpell", "md_faminc", "pct25_earn_wne_p6",
+              "grad_debt_mdn", "ugds_black", "mn_earn_wne_indep0_p6", 
+              "dep_inc_pct_lo", "pct10_earn_wne_p6")
+
+makeGraph = function(df, y){
+  label <- terms %>% filter(
+    variable_name == str_to_upper(y)
+  ) %>% pluck(1)
+  
+  df %>% 
+    select("compl_rpy_5yr_rt", pred = y) %>% 
+    ggplot(aes(pred, compl_rpy_5yr_rt)) +
+    geom_point(color = '#269844', alpha = 0.5) +
+    labs(
+      x = label,
+      y = "Five-year repayment rate for completers"
+    ) +
+    theme_minimal()
+    
+}
+graphs <- tibble(info = colleges %>% list()) %>% 
+  crossing(preds = topvars) %>% 
+  mutate(
+    graph = map2(info, preds, makeGraph)
+  )
+
+```
+
+#### Income 
+Based on the uses of the variables, the average family income, median family income and income of the student for a given institution is are three of the top predictors, and all follow the same general shape.
+
+```{r faminc, out.width='30%'}
+graphs %>% 
+  pluck(3,3)
+graphs %>% 
+  pluck(3,5)
+graphs %>% 
+  pluck(3,1)
+```
+
+The reliance of the forest upon income is both enlightening and disappointing. Students often can't control the amount of money they have, and attending a school with a high repayment rate may misleading since it is not base as much on other factors such as the major or diversity of the school.
+
+#### Future Questions 
+
+However, these variables are most likely strongly related, so a future project following the same question might consider removing some of these variables or thinking about collinearity  more carefully. 
+
+Another consideration is the handling of missing data. There were missing values for the forests but since `XGBoost` handles that issue internally, it was easier to work with. It would be interesting to think more about the missing data, and even see if it is possible to predict when an institution will not report data. 
+
+
+## Exploritory Analysis
+
+
+### Introduction 
+
+I remember being in high school, looking the College Scorecard, wondering where I would end up. I thought about my choices logically; humanly. Which school would give me a scholarship? Which school would prepare me to enter the workforce? Which school could I get into? 
+
+Approximately four years later, I'm sitting in my room staring the data, this time in its raw format. With the end of college years quickly approaching, I have a different question, a question I want the  1,580 observations in my filtered data set to solve. Can I predict loan repayment based on the institution you attended? 
+
+### The Question
+
+Finding a response variable from the data was actually slightly more complicated than I initially thought it would be. There are 132 variables in the data set related to that question. There's a two year default rate, a three year default rate, not to mention the one, three, five and seven year repayment rates. Each of the later is further divided by income, original financial aid, and dependency. 
+
+I decided to go with the five year repayment rate for completers. In short, I choose to calculate the percentage of students who are paying off their loan 5 years after they entered the loan repayment period (it came due). 
+
+This response variable is not perfect. Its initial missingness was about 16%. It is recorded in percents, and the number refers to students who are paying off their federal loans. It doesn't account for the number of students who have already paid off their loans. It's also a little hard to tell if a high percentage of students who are still paying off loans after 5 years is a good or a bad thing.
+
+However, I thought it would make a decent response variable, so I stuck with it.
+
+### The Data
+
+My goal of being accurately able to predict my chosen response required a bit of data cleaning. My data set originally had around 6,000 entries and 2,000 variables. 
+
+I reduced the number of variables by hand, looking at each category (such as aid or admission), and choosing the variables I wanted. I had a couple things in mind as I chose these variables. First, I considered my own college search experience and looked for major categories that high school students would consider when looking for a college. I also did my best to avoid the minutia.
+
+The data provided by College Scorecard can be considered at very specific levels such as the *cumulative loan debt at the 90th percentile*. However I wanted the results to be as readable as possible so I focused on gathering variables such as the admission rate and the average SATs instead. 
+
+Included in the 6,000 variables were 2-year degree programs and private for-profit organizations. I wasn't interested in predicting loan repayment for either of those cases, so I filtered them out, leaving me with the public and private non-profit institutions instead. 
+
+### A Few Linear Relationships
+
+While most of the comparisons between the repayment rate and other variables did not appear to be linearly related, there were a few functions where fitting linear or polynomial models seemed feasible. 
+
+
+#### Average SATs
+
+The average SAT equivalent score, (the average test score for colleges with ACTs converted to SATs), looks to be somewhat linearly related, though its actual linear correlation, is only 59%.
+
+```{r avg_sat}
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, sat_avg)) +
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent)+
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "SAT Average Score",
+    caption = "Unit is an institution"
+  )
+```
+
+##### Tuition
+
+Tuition is a variable we instinctively assume to be correlated with success. Here, success looks like paying off a loan, which, in this case, is only linearly correlated at a rate of 41.5% for private universities, and 36.7% for public. 
+
+```{r cost, out.width='50%'}
+colleges_train %>% 
+  ggplot(aes( compl_rpy_5yr_rt, npt4_priv) )+
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent)+
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "Private Tuition",
+    caption = "Unit is an institution",
+    title = "Private"
+  )
+
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, npt4_pub) )+
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent)+
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "Public Tuition",
+    caption = "Unit is an institution",
+    title = "Public"
+  )
+```
+
+##### Faculty 
+
+Another interesting relationship is the average salary of the faculty in comparison to the loan rate. The question we might ask here is, does paying the faculty more improve repayment for their students? In theory, we might say yes, because the faculty is more motivated and interested in their students, resulting in more skills. But we can see that although there is a slight trend here, it is not strong enough to read with confidence. 
+
+
+```{r fac}
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, avgfacsal) )+
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent)+
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "Average Salary for Faculty",
+    caption = "Unit is an institution"
+  )
+```
+
+#### Pell Grants
+
+The most linear relationship I came across in my graphing was the percentage of Pell Grants verses the repayment. This negative trend could be for many reasons, such as the possibility of Pell Grants reducing the amount of Federal loans taken. Whatever the reason, it has a negative 73% correlation.
+
+```{r pell}
+colleges_train %>% 
+  ggplot(aes(compl_rpy_5yr_rt, pctpell) )+
+  geom_point(color = "#269844", alpha = 0.6) +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "% of students with Pell Grants",
+    caption = "Unit is an institution"
+  )
+```
+
+### Group Plots 
+
+When choosing my predictors, there were several moments where I selected several variables that fit together particularly well for comparison. 
+
+#### Ethnicity
+
+One of the sets of variables I chose was Enrollment by Ethnicity. It is rather similar across the board with a few exceptions, such as White, Black and Hispanic. There a appears to be some other factors at work in these cases.
+
+```{r eth}
+ugds <- str_match(colleges_train %>% names, "^ugds.*")
+ugds <- ugds[!is.na(ugds)]
+ugds_eda <- colleges_train %>% 
+  select(c(ugds,compl_rpy_5yr_rt) )
+
+eth_labels <-terms %>% 
+  select(name = name_of_data_element, var = variable_name ) %>% 
+  mutate(
+    name = str_remove(name, "(^Total.*who are)|(^Total.*whose race is)"),
+    var = str_to_lower(var),
+    name = str_to_title(name),
+    name = str_trim(name)
+  ) %>% 
+  filter(str_detect(var, "ugds"))
+
+# By Ethnicity
+ugds_eda %>% 
+  pivot_longer(c(-compl_rpy_5yr_rt, -ugds_men, -ugds_women), values_to = "percent_eth", names_to = "ethnicity") %>% 
+  left_join(eth_labels, by = c("ethnicity" = "var")) %>% 
+  ggplot(aes(compl_rpy_5yr_rt, percent_eth)) +
+  geom_point(aes(color = name))+
+  facet_wrap(~name)  +
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "% of students enrolled by ethnicity",
+    caption = "Unit is an institution",
+     color = ""
+  ) +
+  ggthemes::scale_color_pander()
+```
+
+#### Gender
+
+I also considered the information by gender, which mostly just shows that while there are more women than men enrolled, they pay off their debts fairly similarly at the 5 year mark.
+
+```{r gender}
+# By male and female
+ugds_eda %>% 
+  pivot_longer(c(ugds_men, ugds_women), values_to = "percent_sex", names_to = "gender") %>% 
+  left_join(eth_labels, by = c("gender" = "var")) %>% 
+  ggplot(aes(compl_rpy_5yr_rt, percent_sex)) +
+  geom_point(aes(color = name), alpha = 0.75)+
+  facet_wrap(~name)+
+  theme_minimal() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "% of students paying off their loan 5 yrs after entering repayment",
+    y = "% of students enrolled by gender",
+    caption = "Unit is an institution",
+    color = ""
+  ) +
+  ggthemes::scale_color_pander()
+
+```
+
+#### Logical Categories
+
+There were several logical categories, which though not all related, I decided to view at the same time. The most noticeable difference in these categories are the the ethnic institutions.
+
+```{r flags}
+flag_type <- function(col){
+  n_distinct(col) == 2
+}
+
+flags <-  c(colleges_train %>% 
+  select_if(flag_type) %>% names)
+
+flag_names <- terms %>% 
+  select(name = name_of_data_element, var = variable_name ) %>% 
+  mutate(
+    name = str_remove(name, "(^Flag for)"),
+    name = str_replace(name, "(^Control)", "Type"),
+    var = str_to_lower(var),
+    name = str_to_title(name),
+    name = str_trim(name)
+  ) %>% 
+  filter(var %in% flags) %>% 
+  distinct(name, .keep_all = TRUE)
+
+colleges_train %>% 
+  select(flags, compl_rpy_5yr_rt) %>% 
+  pivot_longer(c(-compl_rpy_5yr_rt, -control), values_to = "class", names_to = "flags") %>%
+  left_join(flag_names, by = c("flags" = "var")) %>% 
+  mutate(class = as.logical(class)) %>% 
+  ggplot(aes(class, compl_rpy_5yr_rt)) +
+  geom_boxplot(aes(color = name))+
+  facet_wrap(~name) +
+  ggthemes::scale_color_pander(labels = function(x) str_wrap(x, width = 15))+
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    y = "% of students paying off their loan 5 yrs after entering repayment",
+    x = "",
+    caption = "Unit is an institution",
+    color = ""
+  )
+```
+
+## Executive Summary
+
+![Executive Summary](Executive_Summary.pdf){width=100% height=700px}
+
+
+
+
+## Sources
+
+The data used for this project is available on [College Scorecard](https://collegescorecard.ed.gov/data/).
+
+[Documentation](https://collegescorecard.ed.gov/assets/FullDataDocumentation.pdf) for the Institutional Level data is also provided.
+
+The source code for this document is available on [Github](https://github.com/dxre-v3/college-scorecard) along with the scripts for the models used. 
+
